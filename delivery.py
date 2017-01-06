@@ -1,27 +1,52 @@
 #!/usr/bin/env python
+
 import praw
 
-#The lowercase string that it searches for (will be op_deliver!)
-OP_DELIVER = "eat less"
+OP_DELIVER = "op_deliver!"
+SUBJECT = "Delivery Bot"
+BODY = "I will let you know if OP Delivers."
+list_of_redditors = list() #Should be a list of classes "RedditorsSubscribed"
 
-def main():
-    reddit = praw.Reddit('bot1') #Refers to [bot1] in praw.ini file
-    subreddit = reddit.subreddit('AskReddit').hot(limit=3) #Get the top 3 hot AskReddit threads
+#================================= CLASSES =====================================
 
-    author = search_for_comment(subreddit)
-    print author
+class RedditorsSubscribed():
+    def __init__(self, username, submission_id):
+        self.username = username
+        self.submission_id = submission_id
+        #self.comment_replied_to = comment_replied_to
 
+#================================= FUNCTIONS ===================================
 
-#Searches for a match and returns the commentors username
+#Finds comments that match with the OP_DELIVER variable and appends the class RedditorsSubscribed instance to "list_of_redditors"
 def search_for_comment(subreddit):
-    # "Submission" contains each AskReddit thread
     for submission in subreddit:
-        submission.comments.replace_more(limit=0) #Get rid of "more" comments
+        submission.comments.replace_more(limit=10)
 
-        #Finds comments that match with "op_deliver!" or whatever is in the OP_DELIVER variable
         for comment in submission.comments.list():
             if comment.body.lower() == OP_DELIVER:
-                return comment.author
+                list_of_redditors.append(RedditorsSubscribed(comment.author, submission.id))
+
+#Sends message to a user.
+def send_message(reddit):
+    redditor = praw.models.Redditor(reddit, list_of_redditors[0].username)
+    redditor.message(SUBJECT, BODY)
+    print("***** Messages sent *****")
+
+def post_reply(): #START HERE AND HAVE THE BOT POST A REPLY
+    return
+
+#================================= MAIN ========================================
+
+def main():
+    while True:
+        reddit = praw.Reddit('bot1')
+        subreddit = reddit.subreddit('AskReddit').hot(limit=8)
+        search_for_comment(subreddit)
+
+        if list_of_redditors:
+            send_message(reddit)
+        else:
+            print("Nothing found")
 
 if __name__ == '__main__':
     main()
