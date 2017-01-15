@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import praw
+import config
 import time
 import sys
 import MySQLdb
@@ -11,8 +12,7 @@ SUBJECT = "Delivery!!!"
 BODY = "OP *may* have delivered! Here is the link to the thread: "
 
 #DATABASE CONNECTION
-
-#db = MySQLdb.connect(host="", user="", passwd="", db="") #Fill this in with relevant data
+db = MySQLdb.connect(host=config.host, user=config.username, passwd=config.password, db=config.db)
 db.autocommit(True)
 cur = db.cursor()
 
@@ -83,8 +83,8 @@ def main():
     while True:
         search_for_delivery(reddit)
 
-        print "Sleeping for 5 seconds"
-        time.sleep(5)
+        print "Sleeping for 10 seconds"
+        time.sleep(10)
 
 if __name__ == '__main__':
     main()
