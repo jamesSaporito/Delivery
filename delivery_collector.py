@@ -5,6 +5,7 @@
 #===============================================================================
 
 import praw
+import config
 import time
 import sys
 import os
@@ -14,16 +15,15 @@ import MySQLdb
 #================================= GLOBALS =====================================
 
 OP_DELIVER = "op_deliver!"
-SUBREDDIT = 'testingground4bots'
+SUBREDDITS = 'AskReddit+IAmA'
 SUBJECT = "Delivery Bot"
 BODY = "I will let you know if OP *maybe* delivers."
-reply_message = "I will let you know if OP *maybe* delivers!"
+reply_message = "**Delivery Bot**\n\nI will let you know if OP *maybe* delivers...\n\n***\rIf anyone else wants reminded, copy the permalink of the *original* comment and PM it to me!"
 list_of_redditors = list() #A list of classes "RedditorsSubscribed"
 reddit_threads = list()
 
-#DATABASE CONNECTION
-
-#db = MySQLdb.connect(host="", user="", passwd="", db="") #Fill this in with relevant data
+#DATABASE CONNECTION #put in function
+db = MySQLdb.connect(host=config.host, user=config.username, passwd=config.password, db=config.db)
 db.autocommit(True)
 cur = db.cursor()
 
@@ -43,18 +43,31 @@ class RedditThreadData():
 
 #================================= FUNCTIONS ===================================
 
+#Connects to the database
+def connect_to_database():
+    db = MySQLdb.connect(host=config.host, user=config.username, passwd=config.password, db=config.db)
+    db.autocommit(True)
+    cur = db.cursor()
+
 #Searches threads and finds comments that match with the OP_DELIVER variable and appends the class RedditorsSubscribed instance to "list_of_redditors"
 def search_for_comment(subreddit):
     for submission in subreddit:
         result = check_database(submission.id)
 
+        #DELETE
+        print submission.author
         if result == False: #If the database doesn't contain the ID
             submission.comments.replace_more(limit=4)
 
             for comment in submission.comments.list():
                 if comment.body.lower() == OP_DELIVER:
 
-                    already_responded_to = check_replied_to(comment.author, comment.parent().id)
+                    #BIG TEST*******************************
+                    if comment.parent().id == submission.id:
+                        already_responded_to = check_replied_to(comment.author, comment.id)
+                    else:
+                        already_responded_to = check_replied_to(comment.author, comment.parent().id)
+
                     if already_responded_to == False:
                         list_of_redditors.append(RedditorsSubscribed(comment.author, comment.id))
                         reddit_threads.append(RedditThreadData(submission.id, submission.author)) #MAKE TABLE FOR THIS DATA
@@ -65,7 +78,7 @@ def search_for_comment(subreddit):
 
 #Sends message to a user
 def send_message(reddit):
-    for person in list_of_redditors:    #Take for loop out of here eventually
+    for person in list_of_redditors:
         redditor = praw.models.Redditor(reddit, str(person.username))
         test = redditor.message(SUBJECT, BODY)
         print("***** Message sent *****")
@@ -75,11 +88,12 @@ def post_reply(reddit, redditor_to_reply_to):
     comment = praw.models.Comment(reddit, redditor_to_reply_to.comment_id)
 
     try:
-        #comment.reply(reply_message)
-        print 'Comment succeeded...'
+        comment.reply(reply_message)
+        print 'Comment submission succeeded'
     except:
         print "Will try to post the comment reply again in 1 minute..."
         time.sleep(60)
+        connect_to_database() #In case the connection is lost
         post_reply(reddit, redditor_to_reply_to)
 
 #Checks if the database already contains a certain ID. Returns TRUE if it already contains the ID
@@ -128,13 +142,13 @@ def main():
     cur.execute("CREATE TABLE IF NOT EXISTS Replied_To (subscriber varchar(50), thread_id varchar(10), comment_id varchar(10))")
 
     while True:
-        subreddit = reddit.subreddit(SUBREDDIT).new(limit=5)
+        subreddit = reddit.subreddit(SUBREDDITS).hot(limit=50)
         search_for_comment(subreddit)
 
         #Sends a PM to people who want to be notified
         for number in range(len(list_of_redditors)):
             post_reply(reddit, list_of_redditors[number])
-            print "post_reply is commented out. Comment not posted"
+            #print "post_reply is commented out. Comment not posted"
 
         send_message(reddit)
 
@@ -154,8 +168,8 @@ def main():
                 respond_to_private_message(reddit, message.author)
                 message.mark_read()
 
-        print "Sleeping for 5 seconds"
-        time.sleep(5)
+        print "Sleeping for 10 seconds"
+        time.sleep(10)
 
 if __name__ == '__main__':
     main()
