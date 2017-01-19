@@ -73,9 +73,6 @@ def check_replied_to(comment_author, thread_id):
 
 #================================= MAIN ========================================
 
-#TO DO:
-#1) If a thread is deleted, remove the submission id from the file and the redditors who wanted to be alerted.
-
 def main():
     reddit = praw.Reddit('bot1')
     cur.execute("CREATE TABLE IF NOT EXISTS Replied_To (subscriber varchar(50), thread_id varchar(10), comment_id varchar(10))")
@@ -83,8 +80,8 @@ def main():
     while True:
         search_for_delivery(reddit)
 
-        print "Sleeping for 10 seconds"
-        time.sleep(10)
+        print "Sleeping for 30 seconds"
+        time.sleep(30)
 
 if __name__ == '__main__':
     main()
