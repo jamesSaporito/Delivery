@@ -1,9 +1,5 @@
 #!/usr/bin/env python
 
-#===============================================================================
-#***** This program will only work for one subreddit at a time *****************
-#===============================================================================
-
 import praw
 import config
 import time
@@ -15,10 +11,10 @@ import MySQLdb
 #================================= GLOBALS =====================================
 
 OP_DELIVER = "op_deliver!"
-SUBREDDITS = 'AskReddit+IAmA'
+SUBREDDITS = 'AskReddit+IAmA' #Add subreddits here
 SUBJECT = "Delivery Bot"
 BODY = "I will let you know if OP *maybe* delivers."
-reply_message = "**Delivery Bot**\n\nI will let you know if OP *maybe* delivers...\n\n***\rIf anyone else wants reminded, copy the permalink of the *original* comment and PM it to me!"
+reply_message = "**Response/Delivery Bot**\n\nI will let you know if OP *maybe* delivers...\n\n***\rIf anyone else wants reminded, copy the permalink of the *original* comment and PM it to me!"
 list_of_redditors = list() #A list of classes "RedditorsSubscribed"
 reddit_threads = list()
 
@@ -148,7 +144,6 @@ def main():
         #Sends a PM to people who want to be notified
         for number in range(len(list_of_redditors)):
             post_reply(reddit, list_of_redditors[number])
-            #print "post_reply is commented out. Comment not posted"
 
         send_message(reddit)
 
@@ -168,8 +163,8 @@ def main():
                 respond_to_private_message(reddit, message.author)
                 message.mark_read()
 
-        print "Sleeping for 10 seconds"
-        time.sleep(10)
+        print "Sleeping for 30 seconds"
+        time.sleep(30)
 
 if __name__ == '__main__':
     main()
