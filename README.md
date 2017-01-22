@@ -14,7 +14,7 @@ If the user wants to be notified of the response by the OP of the comment they a
 * In the image above, *u/testing_away* is the original poster.
 * *u/onemoretest* leaves the "OP_Deliver!" comment, which means he wants to be notified when *u/testing_away* responds to *u/tester_again*.
 
-[Imgur](http://i.imgur.com/bixAM6H.png "Example Image 2")
+![Alt text](http://i.imgur.com/bixAM6H.png "Example Image 2")
 
 * The bot leaves a comment and private messages *u/onemoretest* a confirmation message.
 * The bot will PM *u/onemoretest* whenever *u/testing_away* responds to *u/tester_again* or any of their child comments including the bot.
