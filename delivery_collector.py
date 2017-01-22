@@ -11,10 +11,10 @@ import MySQLdb
 #================================= GLOBALS =====================================
 
 OP_DELIVER = "op_deliver!"
-SUBREDDITS = 'AMA' #Add subreddits here
+SUBREDDITS = 'testingground4bots' #Add subreddits here
 SUBJECT = "Delivery Bot"
 BODY = "I will let you know if OP *maybe* delivers."
-commentMessage = "**Delivery Bot**\n\nI will let you know if OP *maybe* delivers...\n\n***\rIf anyone else wants reminded, copy the permalink of the comment or thread and PM it to me!"
+commentMessage = "***Delivery Bot***\n\nI will let you know if OP *maybe* delivers...\n\n***\rIf anyone else wants reminded, copy the permalink of OP's comment/thread and PM it to me!"
 
 #================================= CLASSES =====================================
 
@@ -39,33 +39,17 @@ class CommentSearch():
     #Searches threads and finds comments that match with the OP_DELIVER variable and appends the class RedditorsSubscribed instance to "list_of_redditors"
     def search_for_comment(self, subreddits):
         for submission in subreddits:
-            #result = self.check_database(submission.id) #What if there are multiple threads in a submission that want delivered.....
-
-            #if result == False: #If the database doesn't contain the ID
             submission.comments.replace_more(limit=50)
 
             for comment in submission.comments.list():
                 if comment.body.lower() == OP_DELIVER: #Whatever is in this global variable
-                    if comment.parent().parent() == submission.id: #old one is comment.parent().id
-                        response = self.check_replied_to(comment.author, comment.id)
-                    else:
-                        response = self.check_replied_to(comment.author, comment.parent().id)
+                    response = self.check_replied_to(comment.author, comment.parent().id)
 
-                    #print comment.parent().parent()
-                    #print submission.id
-                    #print comment.parent()
                     if response == False:
                         result = self.check_database(comment.author, comment.parent().id)
-                        '''
-                        print result
-                        print comment.author
-                        print comment.id
-                        print comment.parent()
-                        print comment.parent().parent()
-                        print comment.parent().author
-                        '''
+
                         if result == False:
-                            self.database.cur.execute("INSERT INTO Reddit_Threads (username, subscriber, thread_id, comment_id) VALUES (%s, %s, %s, %s)", (comment.parent().author, comment.author, submission.id, comment.parent().id))
+                            self.database.cur.execute("INSERT INTO Reddit_Threads (username, subscriber, thread_id, comment_id) VALUES (%s, %s, %s, %s)", (comment.parent().parent().author, comment.author, submission.id, comment.parent().id))
                             self.post_reply(self.reddit, comment)
                             self.send_message(self.reddit, comment)
                 elif re.search(r'op_deliver!', comment.body.lower()) and re.search(r'u/', comment.body): #match = re.match(r'http', message.body)
@@ -76,8 +60,6 @@ class CommentSearch():
                         result = self.check_database(comment.author, comment.parent().id)
                         response = self.check_replied_to(comment.author, comment.parent().id)
 
-                        #print comment.author
-                        #print comment.parent().id
                         if result == False and response == False:
                             self.database.cur.execute("INSERT INTO Reddit_Threads (username, subscriber, thread_id, comment_id) VALUES (%s, %s, %s, %s)", (extractedUsername[1], comment.author, submission.id, comment.parent().id))
                             self.post_reply(self.reddit, comment)
@@ -87,9 +69,6 @@ class CommentSearch():
                         print str(e)
                         print "Not a valid user."
                         continue
-                    #Check if it's a valid user
-                    #Check if it's in the database with the associated commentId
-
 
     #Checks if the database already contains a certain ID. Returns TRUE if it already contains the ID
     def check_database(self, commentAuthor, commentId):
