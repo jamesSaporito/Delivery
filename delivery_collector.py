@@ -11,156 +11,174 @@ import MySQLdb
 #================================= GLOBALS =====================================
 
 OP_DELIVER = "op_deliver!"
-SUBREDDITS = 'AskReddit+IAmA' #Add subreddits here
+SUBREDDITS = 'AMA' #Add subreddits here
 SUBJECT = "Delivery Bot"
 BODY = "I will let you know if OP *maybe* delivers."
-reply_message = "**Response/Delivery Bot**\n\nI will let you know if OP *maybe* delivers...\n\n***\rIf anyone else wants reminded, copy the permalink of the *original* comment and PM it to me!"
-list_of_redditors = list() #A list of classes "RedditorsSubscribed"
-reddit_threads = list()
-
-#DATABASE CONNECTION #put in function
-db = MySQLdb.connect(host=config.host, user=config.username, passwd=config.password, db=config.db)
-db.autocommit(True)
-cur = db.cursor()
+commentMessage = "**Delivery Bot**\n\nI will let you know if OP *maybe* delivers...\n\n***\rIf anyone else wants reminded, copy the permalink of the comment or thread and PM it to me!"
 
 #================================= CLASSES =====================================
 
-#Contains the redditors username and their comment ID
-class RedditorsSubscribed():
-    def __init__(self, username, comment_id):
-        self.username = username
-        self.comment_id = comment_id
+#Used to connect to the database
+class DatabaseConnection():
+    db = None
+    cur = None
 
-#Contains the submission ID of a reddit thread and the original posters username(author)
-class RedditThreadData():
-    def __init__(self, submission_id, author):
-        self.submission_id = submission_id
-        self.author = author
+    def __init__(self):
+        self.db = MySQLdb.connect(host=config.host, user=config.username, passwd=config.password, db=config.db)
+        self.cur = self.db.cursor()
 
-#================================= FUNCTIONS ===================================
+#Used to search for comments, save to database, and confirm comments were found
+class CommentSearch():
+    database = DatabaseConnection()
 
-#Connects to the database
-def connect_to_database():
-    db = MySQLdb.connect(host=config.host, user=config.username, passwd=config.password, db=config.db)
-    db.autocommit(True)
-    cur = db.cursor()
+    def __init__(self, subreddits, reddit):
+        self.reddit = reddit
+        self.search_for_comment(subreddits)
+        self.database.db.commit()
 
-#Searches threads and finds comments that match with the OP_DELIVER variable and appends the class RedditorsSubscribed instance to "list_of_redditors"
-def search_for_comment(subreddit):
-    for submission in subreddit:
-        result = check_database(submission.id)
+    #Searches threads and finds comments that match with the OP_DELIVER variable and appends the class RedditorsSubscribed instance to "list_of_redditors"
+    def search_for_comment(self, subreddits):
+        for submission in subreddits:
+            #result = self.check_database(submission.id) #What if there are multiple threads in a submission that want delivered.....
 
-        #DELETE
-        print submission.author
-        if result == False: #If the database doesn't contain the ID
-            submission.comments.replace_more(limit=4)
+            #if result == False: #If the database doesn't contain the ID
+            submission.comments.replace_more(limit=50)
 
             for comment in submission.comments.list():
-                if comment.body.lower() == OP_DELIVER:
-
-                    #BIG TEST*******************************
-                    if comment.parent().id == submission.id:
-                        already_responded_to = check_replied_to(comment.author, comment.id)
+                if comment.body.lower() == OP_DELIVER: #Whatever is in this global variable
+                    if comment.parent().parent() == submission.id: #old one is comment.parent().id
+                        response = self.check_replied_to(comment.author, comment.id)
                     else:
-                        already_responded_to = check_replied_to(comment.author, comment.parent().id)
+                        response = self.check_replied_to(comment.author, comment.parent().id)
 
-                    if already_responded_to == False:
-                        list_of_redditors.append(RedditorsSubscribed(comment.author, comment.id))
-                        reddit_threads.append(RedditThreadData(submission.id, submission.author)) #MAKE TABLE FOR THIS DATA
-
-                        result = check_database(submission.id)
+                    #print comment.parent().parent()
+                    #print submission.id
+                    #print comment.parent()
+                    if response == False:
+                        result = self.check_database(comment.author, comment.parent().id)
+                        '''
+                        print result
+                        print comment.author
+                        print comment.id
+                        print comment.parent()
+                        print comment.parent().parent()
+                        print comment.parent().author
+                        '''
                         if result == False:
-                            cur.execute("INSERT INTO Reddit_Threads (username, subscriber, thread_id, comment_id) VALUES (%s, %s, %s, %s)", (comment.parent().author, comment.author, submission.id, comment.parent().id))
+                            self.database.cur.execute("INSERT INTO Reddit_Threads (username, subscriber, thread_id, comment_id) VALUES (%s, %s, %s, %s)", (comment.parent().author, comment.author, submission.id, comment.parent().id))
+                            self.post_reply(self.reddit, comment)
+                            self.send_message(self.reddit, comment)
+                elif re.search(r'op_deliver!', comment.body.lower()) and re.search(r'u/', comment.body): #match = re.match(r'http', message.body)
+                    extractedUsername = comment.body.split('u/')
 
-#Sends message to a user
-def send_message(reddit):
-    for person in list_of_redditors:
-        redditor = praw.models.Redditor(reddit, str(person.username))
+                    try:
+                        self.reddit.get('/user/'+ extractedUsername[1] +'/overview')
+                        result = self.check_database(comment.author, comment.parent().id)
+                        response = self.check_replied_to(comment.author, comment.parent().id)
+
+                        #print comment.author
+                        #print comment.parent().id
+                        if result == False and response == False:
+                            self.database.cur.execute("INSERT INTO Reddit_Threads (username, subscriber, thread_id, comment_id) VALUES (%s, %s, %s, %s)", (extractedUsername[1], comment.author, submission.id, comment.parent().id))
+                            self.post_reply(self.reddit, comment)
+                            self.send_message(self.reddit, comment)
+
+                    except Exception as e:
+                        print str(e)
+                        print "Not a valid user."
+                        continue
+                    #Check if it's a valid user
+                    #Check if it's in the database with the associated commentId
+
+
+    #Checks if the database already contains a certain ID. Returns TRUE if it already contains the ID
+    def check_database(self, commentAuthor, commentId):
+        self.database.cur.execute("SELECT * FROM Reddit_Threads WHERE subscriber = %s and comment_id = %s", (commentAuthor, commentId))
+
+        if self.database.cur.rowcount == 0:
+            return False
+        else:
+            return True
+
+    #Sends message to a user
+    def send_message(self, reddit, comment):
+        redditor = praw.models.Redditor(reddit, str(comment.author))
         test = redditor.message(SUBJECT, BODY)
         print("***** Message sent *****")
 
-#Replies to a comment that contains the string of the variable OP_DELIVER
-def post_reply(reddit, redditor_to_reply_to):
-    comment = praw.models.Comment(reddit, redditor_to_reply_to.comment_id)
+    #Replies to a comment that contains the string of the variable OP_DELIVER
+    def post_reply(self, reddit, comment):
+        postComment = praw.models.Comment(reddit, comment.id)
 
-    try:
-        comment.reply(reply_message)
-        print 'Comment submission succeeded'
-    except:
-        print "Will try to post the comment reply again in 1 minute..."
-        time.sleep(60)
-        connect_to_database() #In case the connection is lost
-        post_reply(reddit, redditor_to_reply_to)
+        try:
+            postComment.reply(commentMessage)
+            print 'Comment submission succeeded'
+        except Exception as e:
+            print str(e)
+            print "Will try to post the comment reply again in 1 minute..."
+            time.sleep(60)
+            database = DatabaseConnection()
+            self.post_reply(reddit, comment)
 
-#Checks if the database already contains a certain ID. Returns TRUE if it already contains the ID
-def check_database(submission): #Rename this to "check_reddit_threads"
-    cur.execute("SELECT * FROM Reddit_Threads WHERE thread_id = %s", [submission])
+    #Check to see if someone has already been replied to in the database
+    def check_replied_to(self, commentAuthor, commentId):
+        self.database.cur.execute("SELECT * FROM Replied_To WHERE subscriber = %s and comment_id= %s", (commentAuthor, commentId))
 
-    if cur.rowcount == 0:
-        return False
-    else:
-        return True
+        if self.database.cur.rowcount == 0:
+            return False
+        else:
+            return True
 
-#Check to see if someone has already been replied to in the database
-def check_replied_to(comment_author, comment_id):
-    cur.execute("SELECT * FROM Replied_To WHERE subscriber = %s and comment_id= %s", (comment_author, comment_id))
-
-    if cur.rowcount == 0:
-        return False
-    else:
-        return True
+#================================= FUNCTIONS ===================================
 
 #Extracts IDs from a permalink that is private messaged to this bot, records everything in the database
 def record_private_messages(author, url, reddit):
-    extracted_thread_id = praw.models.Submission.id_from_url(url)
-    extracted_comment_id = url.split('/')
-    comment_id = praw.models.Comment(reddit, extracted_comment_id[8])
+    database = DatabaseConnection()
 
-    thread_table = cur.execute("SELECT * FROM Reddit_Threads WHERE username = %s and thread_id = %s", (author, extracted_thread_id))
-    replied_table = cur.execute("SELECT * FROM Replied_To WHERE subscriber = %s and comment_id = %s", (author, comment_id))
+    extractedThreadId = praw.models.Submission.id_from_url(url)
+    extractedCommentId = url.split('/')
+    commentId = praw.models.Comment(reddit, extractedCommentId[8])
 
-    if thread_table == 0 and replied_table == 0:
-        cur.execute("INSERT INTO Reddit_Threads (username, subscriber, thread_id, comment_id) VALUES (%s, %s, %s, %s)", (comment_id.author, author, extracted_thread_id, comment_id))
+    threadTable = database.cur.execute("SELECT * FROM Reddit_Threads WHERE username = %s and thread_id = %s", (author, extractedThreadId))
+    repliedTable = database.cur.execute("SELECT * FROM Replied_To WHERE subscriber = %s and comment_id = %s", (author, commentId))
 
+    if threadTable == 0 and repliedTable == 0:
+        try:
+            database.cur.execute("INSERT INTO Reddit_Threads (username, subscriber, thread_id, comment_id) VALUES (%s, %s, %s, %s)", (commentId.author, author, extractedThreadId, commentId))
+            respond_to_private_message(reddit, author)
+        except Exception as e:
+            print str(e)
+
+#Sends a PM to the redditor who sent the bot a PM with the permalink
 def respond_to_private_message(reddit, author):
     redditor = praw.models.Redditor(reddit, author)
     redditor.message(SUBJECT, BODY)
     print("***** Message sent *****")
 
+#Create the tables if it doesn't already exist
+def create_tables():
+    connection = DatabaseConnection()
+    connection.cur.execute("CREATE TABLE IF NOT EXISTS Reddit_Threads (username varchar(50), subscriber varchar(50), thread_id varchar(10), comment_id varchar(10), PRIMARY KEY (subscriber, comment_id))")
+    connection.cur.execute("CREATE TABLE IF NOT EXISTS Replied_To (subscriber varchar(50), thread_id varchar(10), comment_id varchar(10), PRIMARY KEY (subscriber, comment_id))")
 
 #================================= MAIN ========================================
 
 def main():
     reddit = praw.Reddit('bot1')
-
-    #Create the table if it doesn't already exist
-    cur.execute("CREATE TABLE IF NOT EXISTS Reddit_Threads (username varchar(50), subscriber varchar(50), thread_id varchar(10), comment_id varchar(10), PRIMARY KEY (subscriber))")
-    cur.execute("CREATE TABLE IF NOT EXISTS Replied_To (subscriber varchar(50), thread_id varchar(10), comment_id varchar(10))")
+    create_tables()
 
     while True:
-        subreddit = reddit.subreddit(SUBREDDITS).hot(limit=50)
-        search_for_comment(subreddit)
-
-        #Sends a PM to people who want to be notified
-        for number in range(len(list_of_redditors)):
-            post_reply(reddit, list_of_redditors[number])
-
-        send_message(reddit)
-
-        list_of_redditors[:] = [] #Empty the list once everything is written to the database
-
-        #To prevent spamming Reddit, once someone has already posted "OP_Deliver!", other users
-        #who want to be notified will be asked to copy the permalink from that comment and private message
-        #it to this bot.
+        subreddits = reddit.subreddit(SUBREDDITS).hot(limit=5)
+        CommentSearch(subreddits, reddit)
 
         #Handle private messages before sleeping
         messages = reddit.inbox.unread()
-        if messages == 0:
-            print "No new messages"
-        else:
-            for message in messages:
+
+        for message in messages:
+            match = re.match(r'http', message.body)
+
+            if match:
                 record_private_messages(message.author, message.body, reddit)
-                respond_to_private_message(reddit, message.author)
                 message.mark_read()
 
         print "Sleeping for 30 seconds"
