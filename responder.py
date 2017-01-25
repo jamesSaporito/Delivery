@@ -5,11 +5,14 @@ import config
 import time
 import sys
 import MySQLdb
+import pprint
 
 #================================= GLOBALS =====================================
 
 SUBJECT = "Delivery!!!"
 BODY = "OP *may* have delivered! Here is the link to the thread: "
+
+#================================= CLASSES =====================================
 
 #Used to connect to the database
 class DatabaseConnection():
@@ -31,7 +34,7 @@ class DeliverySearch():
     #Searches recorded threads to see if OP has delivered or not
     def search_for_delivery(self):
         self.database.cur.execute("SELECT DISTINCT username, comment_id FROM Reddit_Threads")
-        rows = self.database.cur.fetchall()   #Gets data from SQL statement above and goes through it one by one
+        rows = self.database.cur.fetchall()
 
         for data in rows:
             try:
@@ -44,17 +47,18 @@ class DeliverySearch():
                     else:
                         continue
             except Exception as e:
-                print str(e)
+                print str(e) + " *Top level comment detected*"
+
                 submission = self.reddit.submission(id=data[1])
+                print submission.id
 
-                for comment in submission.comments.list():
-
+                for comment in submission.comments:
                     if comment.author == data[0]:
                         self.find_subscribers(self.reddit)
                     else:
                         continue
 
-
+    #Gets all of the subscribers when a delivery is found. data[0] = subscriber, data[1] = thread_id, data[2] = comment_id
     def find_subscribers(self, reddit):
         self.database.cur.execute("SELECT DISTINCT subscriber, thread_id, comment_id FROM Reddit_Threads")
         rows = self.database.cur.fetchall()
@@ -65,12 +69,13 @@ class DeliverySearch():
                 self.message_op_delivered(reddit, url.shortlink, data[0])
                 self.update_databases(reddit, data[0], data[1], data[2])
 
-    #Sends messages that OP delivered
-    def message_op_delivered(self, reddit, shortlink, subscriber): #Select all repeats of the id if reply is found
+    #Sends messages that OP maybe delivered
+    def message_op_delivered(self, reddit, shortlink, subscriber):
         redditor = praw.models.Redditor(reddit, subscriber)
         redditor.message(SUBJECT, BODY + shortlink)
         print("***** Message sent *****")
 
+    #Removes data from the "Reddit_Threads" table and puts it into the "Replied_To" table
     def update_databases(self, reddit, subscriber, thread_id, comment_id):
         self.database.cur.execute("DELETE FROM Reddit_Threads WHERE subscriber = %s and comment_id = %s", (subscriber, comment_id))
         self.database.cur.execute("INSERT INTO Replied_To (subscriber, thread_id, comment_id) VALUES (%s, %s, %s)", (subscriber, thread_id, comment_id)) #insert this info into the Responded_To table
@@ -84,7 +89,8 @@ class DeliverySearch():
         else:
             return True
 
-#Create the tables if it doesn't already exist
+
+#Create the tables if they don't already exist
 def create_tables():
     connection = DatabaseConnection()
     connection.cur.execute("CREATE TABLE IF NOT EXISTS Reddit_Threads (username varchar(50), subscriber varchar(50), thread_id varchar(10), comment_id varchar(10), PRIMARY KEY (subscriber, comment_id));")
@@ -99,8 +105,8 @@ def main():
     while True:
         DeliverySearch(reddit)
 
-        print "Sleeping for 30 seconds"
-        time.sleep(30)
+        print "Sleeping for 60 seconds"
+        time.sleep(60)
 
 if __name__ == '__main__':
     main()
