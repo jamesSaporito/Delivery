@@ -1,9 +1,9 @@
 # DeliveryBot
 
-##About
+## About
 This is a bot that alerts users of Reddit whether or not a specific user has responded to a comment thread or submission. Since there is no real way to determine if the original poster actually delivered or not, besides actually reading the comment, it private messages users when another user responds to a certain thread, which is determined by the comment.
 
-##Examples
+## Examples
 A user leaves the comment "OP_Deliver!" to be notified if the original poster of the grandfather comment replies to that thread.
 
 **Example 1:**
